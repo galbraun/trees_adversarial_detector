@@ -87,23 +87,30 @@ def _load_dataset(experiment_output, load_from_disk):
 
     # Split dataset
     if (experiment_output / 'X_train.jblib').exists() and load_from_disk:
-        X_train = joblib.load(experiment_output / 'X_train.jblib')
-        X_test = joblib.load(experiment_output / 'X_test.jblib')
-
-        y_train = joblib.load(experiment_output / 'y_train.jblib')
-        y_test = joblib.load(experiment_output / 'y_test.jblib')
+        # X_train = joblib.load(experiment_output / 'X_train.jblib')
+        # X_test = joblib.load(experiment_output / 'X_test.jblib')
+        #
+        # y_train = joblib.load(experiment_output / 'y_train.jblib')
+        # y_test = joblib.load(experiment_output / 'y_test.jblib')
+        dataset_splitted = joblib.load(experiment_output / 'dataset_splitted.jblib')
     else:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=config['dataset_split']['test_size'])
-        joblib.dump(X_train, experiment_output / 'X_train.jblib')
-        joblib.dump(X_test, experiment_output / 'X_test.jblib')
-        joblib.dump(y_train, experiment_output / 'y_train.jblib')
-        joblib.dump(y_test, experiment_output / 'y_test.jblib')
-        dump_svmlight_file(X_train, y_train, experiment_output / 'train_svm_data.svmlight',
-                           comment=f"{config['dataset']['dataset_name']} train original data")
-        dump_svmlight_file(X_test, y_test, experiment_output / 'test_svm_data.svmlight',
-                           comment=f"{config['dataset']['dataset_name']} test original data")
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=config['dataset_split']['test_size'])
+        # joblib.dump(X_train, experiment_output / 'X_train.jblib')
+        # joblib.dump(X_test, experiment_output / 'X_test.jblib')
+        # joblib.dump(y_train, experiment_output / 'y_train.jblib')
+        # joblib.dump(y_test, experiment_output / 'y_test.jblib')
+        # dump_svmlight_file(X_train, y_train, experiment_output / 'train_svm_data.svmlight',
+        #                    comment=f"{config['dataset']['dataset_name']} train original data")
+        # dump_svmlight_file(X_test, y_test, experiment_output / 'test_svm_data.svmlight',
+        #                    comment=f"{config['dataset']['dataset_name']} test original data")
+        dataset_splitted = dataset_spliter(X, y)
+        joblib.dump(dataset_splitted, experiment_output / 'dataset_splitted.jblib')
+        for dataset_name in dataset_splitted.keys():
+            dump_svmlight_file(dataset_splitted[dataset_name][0], dataset_splitted[dataset_name][1],
+                               experiment_output / f'{dataset_name}_data.svmlight',
+                               comment=f"{dataset_name} data")
 
-    return X_train, X_test, y_train, y_test
+    return dataset_splitted
 
 
 def _original_repr_knn_performance(X_train, X_test, y_train, y_test, config, experiment_output):
@@ -385,44 +392,59 @@ def full_experiment_cycle(config, load_from_disk=True):
 
     # Load dataset
     print("Loading dataset")
-    X_train, X_test, y_train, y_test = _load_dataset(experiment_output, load_from_disk)
+    dataset_splitted = _load_dataset(experiment_output, load_from_disk)
 
     # Extract original representation KNN performance
     print("Extracting original representation KNN performance")
-    _original_repr_knn_performance(X_train, X_test, y_train, y_test, config, experiment_output)
+    _original_repr_knn_performance(dataset_splitted['knn_org_perf'][0], dataset_splitted['final_test'][0],
+                                   dataset_splitted['knn_org_perf'][1], dataset_splitted['final_test'][1], config,
+                                   experiment_output)
 
     # Train XGBoost Classifier
     print("Preparing XGBoost model")
-    trees_model = _train_xgboost_model(X_train, X_test, y_train, y_test, config, experiment_output, load_from_disk)
+    trees_model = _train_xgboost_model(dataset_splitted['xgboost'][0], dataset_splitted['final_test'][0],
+                                       dataset_splitted['xgboost'][1], dataset_splitted['final_test'][1], config,
+                                       experiment_output, load_from_disk)
 
     # Extract original dataset 2d representations
     print("Extracting 2D representation of original data")
-    _original_dataset_2d_rep(experiment_output, X_train, X_test, y_train, y_test)
+    _original_dataset_2d_rep(experiment_output, dataset_splitted['xgboost'][0], dataset_splitted['final_test'][0],
+                             dataset_splitted['xgboost'][1], dataset_splitted['final_test'][1])
 
     # Generate Adversarial Samples
     print("Preparing adversarial samples")
-    X_adv_train, X_adv_test = _generate_adv_samples(config, experiment_output, X_train.shape[1], load_from_disk)
+    X_adv_train, X_adv_test = _generate_adv_samples(config, experiment_output, dataset_splitted['xgboost'][0].shape[1],
+                                                    load_from_disk)
 
     # Extract adversarial dataset representation using original representation
     print("Extracting 2D representation with adversarial samples")
-    _with_adv_dataset_2d_rep(experiment_output, X_train, X_test, X_adv_train, X_adv_test)
+    _with_adv_dataset_2d_rep(experiment_output, dataset_splitted['xgboost'][0], dataset_splitted['final_test'][0],
+                             X_adv_train, X_adv_test)
 
     # Extract embedding dataset
     print("Extracting dataset for embedding calculation")
     embedding_X, embedding_y, num_nodes = _extract_main_embedding_dataset(config, experiment_output,
-                                                                          np.vstack([X_train, X_test]),
+                                                                          np.vstack(
+                                                                              [dataset_splitted['embedding_model'][0],
+                                                                               dataset_splitted['final_test'][1]]),
                                                                           trees_model, load_from_disk)
 
     # Train Embedding model
     print("Training embedding representation for original dataset")
     embedding_model, summary = _extract_main_embedding_model(config, experiment_output, embedding_X,
                                                              embedding_y, num_nodes,
-                                                             X_train.shape[0] + X_test.shape[0],
-                                                             X_train.shape[1], load_from_disk)
+                                                             dataset_splitted['embedding_model'][0].shape[0] +
+                                                             dataset_splitted['final_test'][0].shape[0],
+                                                             dataset_splitted['embedding_model'][0].shape[1],
+                                                             load_from_disk)
 
     # Extract adv embedding dataset
     embedding_X_adv, embedding_y_adv, num_nodes_adv = _extract_adv_embeddings_dataset(config, experiment_output,
-                                                                                      np.vstack([X_train, X_test]),
+                                                                                      np.vstack([dataset_splitted[
+                                                                                                     'embedding_model'][
+                                                                                                     0],
+                                                                                                 dataset_splitted[
+                                                                                                     'final_test'][1]]),
                                                                                       np.vstack(
                                                                                           [X_adv_train, X_adv_test]),
                                                                                       trees_model, load_from_disk)
@@ -440,7 +462,8 @@ def full_experiment_cycle(config, load_from_disk=True):
 
     # Extract embedding 2d representation
     print("Extract 2d representation of the embeddings")
-    _embedding_2d_represenetation(experiment_output, embedding_model, embedding_model_adv, y_train, y_test)
+    _embedding_2d_represenetation(experiment_output, embedding_model, embedding_model_adv,
+                                  dataset_splitted['embedding_model'][1], dataset_splitted['final_test'][1])
 
     # Extract representation comparison
 
@@ -474,44 +497,45 @@ def dataset_spliter(X, y, need_test=True, X_test=None, y_test=None):
                                                                       train_size=dataset_split_portions['knn_org_perf'])
 
     # XGBoost classifier training dataset - 35%
-    X_xgboost, X_rest, y_xgboost, y_rest = train_test_split(X, y, shuffle=True,
-                                                            train_size=dataset_split_portions['xgboost'] / (
-                                                                    1 - dataset_split_portions['knn_org_perf']))
+    X_xgboost, X_rest, y_xgboost, y_rest = train_test_split(X_rest, y_rest, shuffle=True,
+                                                            train_size=(dataset_split_portions['xgboost'] / (
+                                                                        1 - dataset_split_portions['knn_org_perf'])))
 
     # Train embedding model dataset - 30%
-    X_embedding, X_rest, y_embedding, y_rest = train_test_split(X, y, shuffle=True,
-                                                                train_size=dataset_split_portions['embedding_model'] / (
-                                                                        1 - dataset_split_portions['knn_org_perf'] +
-                                                                        dataset_split_portions['xgboost']))
+    X_embedding, X_rest, y_embedding, y_rest = train_test_split(X_rest, y_rest, shuffle=True, train_size=(
+                dataset_split_portions['embedding_model'] / (
+                    1 - dataset_split_portions['knn_org_perf'] - dataset_split_portions['xgboost'])))
 
     # Normal dataset to train the detector - 10%
-    X_detector_normal, X_rest, y_detector_normal, y_rest = train_test_split(X, y, shuffle=True,
+    X_detector_normal, X_rest, y_detector_normal, y_rest = train_test_split(X_rest, y_rest, shuffle=True,
                                                                             train_size=dataset_split_portions[
-                                                                                           'detector_normal'] / (
-                                                                                               1 -
-                                                                                               dataset_split_portions[
-                                                                                                   'knn_org_perf'] +
-                                                                                               dataset_split_portions[
-                                                                                                   'xgboost'] +
-                                                                                               dataset_split_portions[
-                                                                                                   'embedding_model']))
+                                                                                           'detector_normal'] / (1 -
+                                                                                                                 dataset_split_portions[
+                                                                                                                     'knn_org_perf'] -
+                                                                                                                 dataset_split_portions[
+                                                                                                                     'xgboost'] -
+                                                                                                                 dataset_split_portions[
+                                                                                                                     'embedding_model']))
 
     # Adversarial samples creation dataset for training the detector - 10%
-    X_detector_adv, X_final_test, y_detector_adv, y_final_test = train_test_split(X, y, shuffle=True,
-                                                                            train_size=dataset_split_portions[
-                                                                                           'detector_adv'] / (
-                                                                                               1 -
-                                                                                               dataset_split_portions[
-                                                                                                   'knn_org_perf'] +
-                                                                                               dataset_split_portions[
-                                                                                                   'xgboost'] +
-                                                                                               dataset_split_portions[
-                                                                                                   'embedding_model']+
-                                                                            dataset_split_portions['detector_normal']))
+    X_detector_adv, X_final_test, y_detector_adv, y_final_test = train_test_split(X_rest, y_rest, shuffle=True,
+                                                                                  train_size=dataset_split_portions[
+                                                                                                 'detector_adv'] / (1 -
+                                                                                                                    dataset_split_portions[
+                                                                                                                        'knn_org_perf'] -
+                                                                                                                    dataset_split_portions[
+                                                                                                                        'xgboost'] -
+                                                                                                                    dataset_split_portions[
+                                                                                                                        'embedding_model'] -
+                                                                                                                    dataset_split_portions[
+                                                                                                                        'detector_normal']))
 
     # Final test set - 10%
     if not need_test:
         X_detector_adv = np.vstack([X_detector_adv, X_final_test])
+        y_detector_adv = np.hstack([y_detector_adv, y_final_test])
+        X_final_test = X_test
+        y_final_test = y_test
 
     return {
         'knn_org_perf': (X_knn_org_perf, y_knn_org_perf),
