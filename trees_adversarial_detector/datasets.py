@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.io import arff
+from sklearn.datasets import load_svmlight_file
 from sklearn.preprocessing import LabelEncoder
 from tensorflow import keras
 
@@ -17,9 +18,91 @@ ELECTRICITY_DATA_PATH = 'data/electricity/electricity-normalized.arff'  # https:
 KC1_DATA_PATH = 'data/KC1/'  # https://www.openml.org/d/1067
 BREAST_CANCER_DATA_PATH = 'data/breast-cancer-wisconsin/breast-cancer-wisconsin.data'
 
+ROBUSTTREE_BREAST_CANCER_TRAIN = 'robusttree_datasets_splits/breast_cancer_scale0.train'
+ROBUSTTREE_BREAST_CANCER_TEST = 'robusttree_datasets_splits/breast_cancer_scale0.test'
+
+ROBUSTTREE_CODRNA_TRAIN = 'robusttree_datasets_splits/cod-rna_s0'
+ROBUSTTREE_CODRNA_TEST = 'robusttree_datasets_splits/cod-rna_s.t0'
+
+ROBUSTTREE_DIABETES_TRAIN = 'robusttree_datasets_splits/diabetes_scale0.train'
+ROBUSTTREE_DIABETES_TEST = 'robusttree_datasets_splits/diabetes_scale0.test'
+
+ROBUSTTREE_IJCNN1_TRAIN = 'robusttree_datasets_splits/ijcnn1s0'
+ROBUSTTREE_IJCNN1_TEST = 'robusttree_datasets_splits/ijcnn1s0.t'
+
+ROBUSTTREE_WEBSPAM_TRAIN = 'robusttree_datasets_splits/webspam_wc_normalized_unigram.svm0.train'
+ROBUSTTREE_WEBSPAM_TEST = 'robusttree_datasets_splits/webspam_wc_normialized_unigram.svm0.test'
+
+ROBUSTTREE_MNIST26_TRAIN = 'robusttree_datasets_splits/binary_mnist0'
+ROBUSTTREE_MNIST26_TEST = 'robusttree_datasets_splits/binary_mnist0.t'
+
 
 class DatasetUnkownException(Exception):
     pass
+
+
+def load_robusttree_dataset(dataset_name):
+    if dataset_name == "breast_cancer":
+        return load_robusttree_breast_cancer()
+
+    if dataset_name == "codrna":
+        return load_robusttree_breast_cancer()
+
+    if dataset_name == "diabetes":
+        return load_robusttree_diabetes()
+
+    if dataset_name == "ijcnn1":
+        return load_robusttree_ijcnn1()
+
+    if dataset_name == "webspam":
+        return load_robusttree_webspam()
+
+    if dataset_name == "mnist26":
+        return load_robusttree_mnist26()
+
+    raise DatasetUnkownException(f'there is no familiar dataset with the name {dataset_name}')
+
+
+def load_robusttree_breast_cancer():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_BREAST_CANCER_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_BREAST_CANCER_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_codrna():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_CODRNA_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_CODRNA_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_diabetes():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_DIABETES_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_DIABETES_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_ijcnn1():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_IJCNN1_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_IJCNN1_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_webspam():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_WEBSPAM_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_WEBSPAM_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_mnist26():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_MNIST26_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_MNIST26_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
 
 
 def load_dataset(dataset_name):

@@ -1,10 +1,11 @@
+import argparse
 import json
 import pathlib
 
 import faiss
 import holoviews as hv
 import joblib
-import numpy as np
+import pandas as pd
 import umap
 import xgboost
 from bokeh.io import save as bokeh_save
@@ -15,11 +16,12 @@ from sklearn.metrics import accuracy_score, recall_score, precision_score, roc_c
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tqdm import tqdm
-import pandas as pd
-import argparse
 
 from trees_adversarial_detector.attack import generate_adv_samples
-from trees_adversarial_detector.datasets import load_dataset
+from trees_adversarial_detector.boosting_detector import generate_embedding_by_rounds, \
+    calculate_a_priori_class_switching, calculate_sample_switching_bayesian_log_likelihood, \
+    generate_embedding_by_round_new_samples, train_rounds_classifiers
+from trees_adversarial_detector.datasets import load_dataset, load_robusttree_dataset
 from trees_adversarial_detector.embedding_proc import extract_embedding_dataset, train_embedding, \
     extract_new_samples_embedding_dataset, train_embedding_new_set
 from trees_adversarial_detector.evaluation import FaissKNeighbors
@@ -99,6 +101,10 @@ template_config = {
             'epochs_test_model': 2,
             'samples_embd_dim': 20,
             'nodes_embd_dim': 10,
+        },
+    'detector_config':
+        {
+            'type': 'simple'
         }
 
 }
@@ -130,7 +136,24 @@ def _load_dataset(config, experiment_output, load_from_disk):
         # dump_svmlight_file(X_test, y_test, experiment_output / 'test_svm_data.svmlight',
         #                    comment=f"{config['dataset']['dataset_name']} test original data")
         dataset_splitted = dataset_spliter(X, y)
-        joblib.dump(dataset_splitted, experiment_output / 'dataset_splitted.jblib')
+        joblib.dump(dataset_splitted, experiment_output / 'dataset_splitted.jblib', compress=1)
+        for dataset_name in dataset_splitted.keys():
+            dump_svmlight_file(dataset_splitted[dataset_name][0], dataset_splitted[dataset_name][1],
+                               experiment_output / f'{dataset_name}_data.svmlight',
+                               comment=f"{dataset_name} data")
+
+    return dataset_splitted
+
+
+def _load_robusttree_dataset(config, experiment_output, load_from_disk):
+    X_train, X_test, y_train, y_test = load_robusttree_dataset(config['dataset']['dataset_name'])
+
+    # Split dataset
+    if (experiment_output / 'dataset_splitted.jblib').exists() and load_from_disk:
+        dataset_splitted = joblib.load(experiment_output / 'dataset_splitted.jblib')
+    else:
+        dataset_splitted = dataset_spliter(X_train, y_train, need_test=False, X_test=X_test, y_test=y_test)
+        joblib.dump(dataset_splitted, experiment_output / 'dataset_splitted.jblib', compress=1)
         for dataset_name in dataset_splitted.keys():
             dump_svmlight_file(dataset_splitted[dataset_name][0], dataset_splitted[dataset_name][1],
                                experiment_output / f'{dataset_name}_data.svmlight',
@@ -274,15 +297,15 @@ def _generate_adv_samples(config, experiment_output, num_features, load_from_dis
         with open(experiment_output / 'train_attack_config.json', 'w') as json_file:
             json.dump(adv_config, json_file)
         train_adv_samples, train_final_statistics = generate_adv_samples(experiment_output / 'train_attack_config.json')
-        joblib.dump(train_adv_samples, experiment_output / f'train_{set_name}_results.jblib')
-        joblib.dump(train_final_statistics, experiment_output / f'train_{set_name}_statistics.jblib')
+        joblib.dump(train_adv_samples, experiment_output / f'train_{set_name}_results.jblib', compress=1)
+        joblib.dump(train_final_statistics, experiment_output / f'train_{set_name}_statistics.jblib', compress=1)
 
         adv_config['inputs'] = str(experiment_output / test_data_filename)
         with open(experiment_output / 'test_attack_config.json', 'w') as json_file:
             json.dump(adv_config, json_file)
         test_adv_samples, test_final_statistics = generate_adv_samples(experiment_output / 'test_attack_config.json')
-        joblib.dump(test_adv_samples, experiment_output / f'test_{set_name}_results.jblib')
-        joblib.dump(test_final_statistics, experiment_output / f'test_{set_name}_statistics.jblib')
+        joblib.dump(test_adv_samples, experiment_output / f'test_{set_name}_results.jblib', compress=1)
+        joblib.dump(test_final_statistics, experiment_output / f'test_{set_name}_statistics.jblib', compress=1)
 
     X_adv_train = []
     for sample in train_adv_samples:
@@ -308,9 +331,9 @@ def _extract_main_embedding_dataset(config, experiment_output, X, trees_model, l
         embedding_X, embedding_y, num_nodes = extract_embedding_dataset(X, trees_model,
                                                                         config['embed_model'][
                                                                             'main_model_dataset_size'])
-        joblib.dump(embedding_X, experiment_output / 'embedding_dataset_X.jblib')
-        joblib.dump(embedding_y, experiment_output / 'embedding_dataset_y.jblib')
-        joblib.dump(num_nodes, experiment_output / 'main_num_nodes.jblib')
+        joblib.dump(embedding_X, experiment_output / 'embedding_dataset_X.jblib', compress=1)
+        joblib.dump(embedding_y, experiment_output / 'embedding_dataset_y.jblib', compress=1)
+        joblib.dump(num_nodes, experiment_output / 'main_num_nodes.jblib', compress=1)
 
     return embedding_X, embedding_y, num_nodes
 
@@ -330,7 +353,7 @@ def _extract_main_embedding_model(config, experiment_output, embedding_X, embedd
                                                             node_embd_dim=config['embed_model']['nodes_embd_dim'])
         embedding_model.save(experiment_output / "embedding_model.h5")
         # joblib.dump(history, experiment_output / 'embedding_model_history.jblib')
-        joblib.dump(summary, experiment_output / 'embedding_model_summary.jblib')
+        joblib.dump(summary, experiment_output / 'embedding_model_summary.jblib', compress=1)
 
     return embedding_model, summary
 
@@ -344,9 +367,9 @@ def _extract_extra_embeddings_dataset(config, experiment_output, X, X_extra, tre
         embedding_X_adv, embedding_y_adv, num_nodes_adv = extract_new_samples_embedding_dataset(X, X_extra, trees_model,
                                                                                                 config['embed_model'][
                                                                                                     f'{dataset_name}_repr_dataset_size'])
-        joblib.dump(embedding_X_adv, experiment_output / f'embedding_{dataset_name}_dataset_X.jblib')
-        joblib.dump(embedding_y_adv, experiment_output / f'embedding_{dataset_name}_dataset_y.jblib')
-        joblib.dump(num_nodes_adv, experiment_output / f'{dataset_name}_num_nodes.jblib')
+        joblib.dump(embedding_X_adv, experiment_output / f'embedding_{dataset_name}_dataset_X.jblib', compress=1)
+        joblib.dump(embedding_y_adv, experiment_output / f'embedding_{dataset_name}_dataset_y.jblib', compress=1)
+        joblib.dump(num_nodes_adv, experiment_output / f'{dataset_name}_num_nodes.jblib', compress=1)
 
     return embedding_X_adv, embedding_y_adv, num_nodes_adv
 
@@ -382,7 +405,7 @@ def _extract_extra_samples_representations(config, experiment_output, embedding_
         embedding_model_adv.save(experiment_output / f"embedding_{dataset_name}_model.h5")
 
         # joblib.dump(history_adv, experiment_output / 'embedding_adv_model_history.jblib')
-        joblib.dump(summary_adv, experiment_output / f'embedding_{dataset_name}_model_summary.jblib')
+        joblib.dump(summary_adv, experiment_output / f'embedding_{dataset_name}_model_summary.jblib', compress=1)
 
     return embedding_model_adv, summary_adv
 
@@ -479,7 +502,7 @@ def full_experiment_cycle(config, load_from_disk=True):
 
     # Load dataset
     print("Loading dataset")
-    dataset_splitted = _load_dataset(config, experiment_output, load_from_disk)
+    dataset_splitted = _load_robusttree_dataset(config, experiment_output, load_from_disk)
 
     # Extract original representation KNN performance
     print("Extracting original representation KNN performance")
@@ -581,108 +604,117 @@ def full_experiment_cycle(config, load_from_disk=True):
                                                                       'detector_adv_train_data.svmlight',
                                                                       'detector_adv_test_data.svmlight', 'detector_adv')
 
-    # Extract detector normal train embedding dataset
-    embedding_X_detector_normal_train, embedding_y_detector_normal_train, num_nodes_detector_normal_train = \
-        _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
-                                          dataset_splitted[
-                                              'detector_normal_train'][0],
-                                          trees_model, load_from_disk,
-                                          'detector_normal_train')
+    if config['detector_config']['type'] == "simple":
+        # Extract detector normal train embedding dataset
+        embedding_X_detector_normal_train, embedding_y_detector_normal_train, num_nodes_detector_normal_train = \
+            _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
+                                              dataset_splitted[
+                                                  'detector_normal_train'][0],
+                                              trees_model, load_from_disk,
+                                              'detector_normal_train')
 
-    # Train normal train Embedding representations
-    print("Training embedding representation detector_normal_train dataset")
-    embedding_model_detector_normal_train, summary_detector_normal_train = _extract_extra_samples_representations(
-        config,
-        experiment_output,
-        embedding_model,
-        embedding_X_detector_normal_train,
-        embedding_y_detector_normal_train,
-        num_nodes_detector_normal_train,
-        dataset_splitted['detector_normal_train'][0].shape[
-            0],
-        dataset_splitted['detector_normal_train'][0].shape[
-            1],
-        load_from_disk, 'detector_normal_train')
+        # Train normal train Embedding representations
+        print("Training embedding representation detector_normal_train dataset")
+        embedding_model_detector_normal_train, summary_detector_normal_train = _extract_extra_samples_representations(
+            config,
+            experiment_output,
+            embedding_model,
+            embedding_X_detector_normal_train,
+            embedding_y_detector_normal_train,
+            num_nodes_detector_normal_train,
+            dataset_splitted['detector_normal_train'][0].shape[
+                0],
+            dataset_splitted['detector_normal_train'][0].shape[
+                1],
+            load_from_disk, 'detector_normal_train')
 
+        # Extract detector normal test embedding dataset
+        embedding_X_detector_normal_test, embedding_y_detector_normal_test, num_nodes_detector_normal_test = \
+            _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
+                                              dataset_splitted[
+                                                  'detector_normal_test'][0],
+                                              trees_model, load_from_disk,
+                                              'detector_normal_test')
 
-    # Extract detector normal test embedding dataset
-    embedding_X_detector_normal_test, embedding_y_detector_normal_test, num_nodes_detector_normal_test = \
-        _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
-                                          dataset_splitted[
-                                              'detector_normal_test'][0],
-                                          trees_model, load_from_disk,
-                                          'detector_normal_test')
+        # Train normal test Embedding representations
+        print("Training embedding representation detector_normal_test dataset")
+        embedding_model_detector_normal_test, summary_detector_normal_test = _extract_extra_samples_representations(
+            config,
+            experiment_output,
+            embedding_model,
+            embedding_X_detector_normal_test,
+            embedding_y_detector_normal_test,
+            num_nodes_detector_normal_test,
+            dataset_splitted[
+                'detector_normal_test'][
+                0].shape[
+                0],
+            dataset_splitted[
+                'detector_normal_test'][
+                0].shape[
+                1],
+            load_from_disk,
+            'detector_normal_test')
 
-    # Train normal test Embedding representations
-    print("Training embedding representation detector_normal_test dataset")
-    embedding_model_detector_normal_test, summary_detector_normal_test = _extract_extra_samples_representations(config,
+        # Extract detector adv train embedding dataset
+        embedding_X_detector_adv_train, embedding_y_detector_adv_train, num_nodes_detector_adv_train = \
+            _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
+                                              X_detector_adv_train,
+                                              trees_model, load_from_disk,
+                                              'detector_adv_train')
+
+        # Train normal train Embedding representations
+        print("Training embedding representation detector_normal_train dataset")
+        embedding_model_detector_adv_train, summary_detector_adv_train = _extract_extra_samples_representations(config,
                                                                                                                 experiment_output,
                                                                                                                 embedding_model,
-                                                                                                                embedding_X_detector_normal_test,
-                                                                                                                embedding_y_detector_normal_test,
-                                                                                                                num_nodes_detector_normal_test,
+                                                                                                                embedding_X_detector_adv_train,
+                                                                                                                embedding_y_detector_adv_train,
+                                                                                                                num_nodes_detector_adv_train,
+                                                                                                                len(
+                                                                                                                    X_detector_adv_train),
                                                                                                                 dataset_splitted[
-                                                                                                                    'detector_normal_test'][
-                                                                                                                    0].shape[
-                                                                                                                    0],
-                                                                                                                dataset_splitted[
-                                                                                                                    'detector_normal_test'][
+                                                                                                                    'detector_adv_train'][
                                                                                                                     0].shape[
                                                                                                                     1],
                                                                                                                 load_from_disk,
-                                                                                                                'detector_normal_test')
+                                                                                                                'detector_adv_train')
 
-    # Extract detector adv train embedding dataset
-    embedding_X_detector_adv_train, embedding_y_detector_adv_train, num_nodes_detector_adv_train = \
-        _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
-                                          X_detector_adv_train,
-                                          trees_model, load_from_disk,
-                                          'detector_adv_train')
+        # Extract detector adv train embedding dataset
+        embedding_X_detector_adv_test, embedding_y_detector_adv_test, num_nodes_detector_adv_test = \
+            _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
+                                              X_detector_adv_test,
+                                              trees_model, load_from_disk,
+                                              'detector_adv_test')
 
-    # Train normal train Embedding representations
-    print("Training embedding representation detector_normal_train dataset")
-    embedding_model_detector_adv_train, summary_detector_adv_train = _extract_extra_samples_representations(config,
-                                                                                                            experiment_output,
-                                                                                                            embedding_model,
-                                                                                                            embedding_X_detector_adv_train,
-                                                                                                            embedding_y_detector_adv_train,
-                                                                                                            num_nodes_detector_adv_train,
-                                                                                                            len(X_detector_adv_train),
-                                                                                                            dataset_splitted[
-                                                                                                                'detector_adv_train'][
-                                                                                                                0].shape[
-                                                                                                                1],
-                                                                                                            load_from_disk,
-                                                                                                            'detector_adv_train')
+        # Train normal train Embedding representations
+        print("Training embedding representation detector_normal_test dataset")
+        embedding_model_detector_adv_test, summary_detector_adv_test = _extract_extra_samples_representations(config,
+                                                                                                              experiment_output,
+                                                                                                              embedding_model,
+                                                                                                              embedding_X_detector_adv_test,
+                                                                                                              embedding_y_detector_adv_test,
+                                                                                                              num_nodes_detector_adv_test,
+                                                                                                              len(
+                                                                                                                  X_detector_adv_test),
+                                                                                                              dataset_splitted[
+                                                                                                                  'detector_adv_test'][
+                                                                                                                  0].shape[
+                                                                                                                  1],
+                                                                                                              load_from_disk,
+                                                                                                              'detector_adv_test')
 
-    # Extract detector adv train embedding dataset
-    embedding_X_detector_adv_test, embedding_y_detector_adv_test, num_nodes_detector_adv_test = \
-        _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
-                                          X_detector_adv_test,
-                                          trees_model, load_from_disk,
-                                          'detector_adv_test')
-
-    # Train normal train Embedding representations
-    print("Training embedding representation detector_normal_test dataset")
-    embedding_model_detector_adv_test, summary_detector_adv_test = _extract_extra_samples_representations(config,
-                                                                                                          experiment_output,
-                                                                                                          embedding_model,
-                                                                                                          embedding_X_detector_adv_test,
-                                                                                                          embedding_y_detector_adv_test,
-                                                                                                          num_nodes_detector_adv_test,
-                                                                                                          len(X_detector_adv_test),
-                                                                                                          dataset_splitted[
-                                                                                                              'detector_adv_test'][
-                                                                                                              0].shape[
-                                                                                                              1],
-                                                                                                          load_from_disk,
-                                                                                                          'detector_adv_test')
-
-    _check_simple_detector(dataset_splitted['detector_normal_train'][0], dataset_splitted['detector_normal_test'][0],
-                           X_detector_adv_train, X_detector_adv_test,
-                           embedding_model_detector_normal_train, embedding_model_detector_normal_test,
-                           embedding_model_detector_adv_train,
-                           embedding_model_detector_adv_test, experiment_output)
+        _check_simple_detector(dataset_splitted['detector_normal_train'][0],
+                               dataset_splitted['detector_normal_test'][0],
+                               X_detector_adv_train, X_detector_adv_test,
+                               embedding_model_detector_normal_train, embedding_model_detector_normal_test,
+                               embedding_model_detector_adv_train,
+                               embedding_model_detector_adv_test, experiment_output)
+    else:
+        _check_boosting_detector(trees_model, dataset_splitted['embedding_model'][0], dataset_splitted[
+            'detector_normal_train'][0], dataset_splitted[
+                                     'detector_normal_test'][0], X_detector_adv_train, X_detector_adv_test
+                                 , experiment_output, load_from_disk)
 
     # Evaluate Adv detector
     # check_simple_detector(config['dataset']['dataset_name'], experiment_output / config['dataset']['dataset_name'],
@@ -690,6 +722,102 @@ def full_experiment_cycle(config, load_from_disk=True):
 
     # Boosting Detector
     pass
+
+
+def _check_boosting_detector(trees_model, X_basic_embedding_model, X_original_normal_train,
+                             X_original_normal_test, X_original_adv_train, X_original_adv_test,
+                             experiment_output, load_from_disk):
+    if (experiment_output / 'boosting_detector_base_embeddings.jblib').exists() and load_from_disk:
+        histories = joblib.load(experiment_output / 'boosting_detector_base_histories.jblib')
+        embedding_models = joblib.load(experiment_output / 'boosting_detector_base_models.jblib')
+        summaries = joblib.load(experiment_output / 'boosting_detector_base_summaries.jblib')
+    else:
+        histories, embedding_models, summaries = generate_embedding_by_rounds(X_basic_embedding_model, trees_model,
+                                                                              12000000)
+        joblib.dump(histories, experiment_output / 'boosting_detector_base_histories.jblib')
+        joblib.dump(embedding_models, experiment_output / 'boosting_detector_base_models.jblib')
+        joblib.dump(summaries, experiment_output / 'boosting_detector_base_summaries.jblib')
+
+    X_original_normal_and_adv_train = np.vstack([X_original_normal_train, X_original_adv_train])
+    y_original_noraml_and_adv_train = np.hstack(
+        [np.zeros(len(X_original_normal_train)), np.ones(len(X_original_adv_train))])
+
+    if (experiment_output / 'boosting_detector_train_embeddings.jblib').exists() and load_from_disk:
+        train_histories = joblib.load(experiment_output / 'boosting_detector_train_histories.jblib')
+        train_embedding_models = joblib.load(experiment_output / 'boosting_detector_train_models.jblib')
+        train_summaries = joblib.load(experiment_output / 'boosting_detector_train_summaries.jblib')
+    else:
+        train_histories, train_embedding_models, train_summaries = generate_embedding_by_round_new_samples(
+            X_basic_embedding_model,
+            X_original_normal_and_adv_train,
+            trees_model,
+            5000000,
+            embedding_models)
+        joblib.dump(train_histories, experiment_output / 'boosting_detector_train_histories.jblib')
+        joblib.dump(train_embedding_models, experiment_output / 'boosting_detector_train_models.jblib')
+        joblib.dump(train_summaries, experiment_output / 'boosting_detector_train_summaries.jblib')
+
+    X_original_normal_and_adv_test = np.vstack([X_original_normal_test, X_original_adv_test])
+
+    if (experiment_output / 'boosting_detector_test_embeddings.jblib').exists() and load_from_disk:
+        test_histories = joblib.load(experiment_output / 'boosting_detector_test_histories.jblib')
+        test_embedding_models = joblib.load(experiment_output / 'boosting_detector_test_models.jblib')
+        test_summaries = joblib.load(experiment_output / 'boosting_detector_test_summaries.jblib')
+    else:
+        test_histories, test_embedding_models, test_summaries = generate_embedding_by_round_new_samples(
+            X_basic_embedding_model,
+            X_original_normal_and_adv_test,
+            trees_model,
+            5000000,
+            embedding_models)
+        joblib.dump(test_histories, experiment_output / 'boosting_detector_test_histories.jblib')
+        joblib.dump(test_embedding_models, experiment_output / 'boosting_detector_test_models.jblib')
+        joblib.dump(test_summaries, experiment_output / 'boosting_detector_test_summaries.jblib')
+
+    if (experiment_output / 'boosting_detector_round_classifiers.jblib').exists() and load_from_disk:
+        round_classifiers = joblib.load('boosting_detector_round_classifiers.jblib')
+    else:
+        round_classifiers = train_rounds_classifiers(train_embedding_models, y_original_noraml_and_adv_train,
+                                                     trees_model.n_estimators)
+        joblib.dump(round_classifiers, experiment_output / 'boosting_detector_round_classifiers.jblib')
+
+    train_predictions = []
+    for i in range(trees_model.n_estimators):
+        pca_projector = round_classifiers[i][1]
+        knn_classifier = round_classifiers[i][0]
+
+        train_samples_embedding = pca_projector.transform(embedding_models[i].layers[3].get_weights()[0])
+
+        train_predictions.append(knn_classifier.predict(train_samples_embedding.astype('float32')))
+
+    train_probabilities = calculate_a_priori_class_switching(np.array(train_predictions).T)
+    calculate_sample_switching_bayesian_log_likelihood(np.array(train_predictions)[:, 1], train_probabilities)
+
+    test_predictions = []
+    for i in range(trees_model.n_estimators):
+        pca_projector = round_classifiers[i][1]
+        knn_classifier = round_classifiers[i][0]
+
+        test_samples_embedding = pca_projector.transform(test_embedding_models[i].layers[3].get_weights()[0])
+
+        test_predictions.append(knn_classifier.predict(test_samples_embedding.astype('float32')))
+
+    test_probabilities = calculate_a_priori_class_switching(np.array(test_predictions).T)
+
+    log_likelihoods_normal = []
+    for i in range(np.array(train_predictions).shape[1]):
+        log_likelihoods_normal.append(
+            calculate_sample_switching_bayesian_log_likelihood(np.array(train_predictions)[:, i], train_probabilities))
+
+    log_likelihoods_adv = []
+    for i in range(np.array(test_predictions).shape[1]):
+        log_likelihoods_adv.append(
+            calculate_sample_switching_bayesian_log_likelihood(np.array(test_predictions)[:, i], test_probabilities))
+
+    train_true = np.zeros(len(log_likelihoods_train))
+    normal_pred = log_likelihoods_train
+    adv_true = np.ones(len(log_likelihoods_test))
+    adv_pred = log_likelihoods_test
 
 
 def _check_simple_detector(X_original_normal_train, X_original_normal_test, X_original_adv_train, X_original_adv_test,
@@ -763,7 +891,8 @@ def _check_simple_detector(X_original_normal_train, X_original_normal_test, X_or
     embedded_test_predictions = embedded_adv_detector.predict(X_embedded_normal_and_adv_test.astype('float32'))
 
     detector_results['embedded_train_predicted_adv'] = np.count_nonzero(embedded_train_predictions)
-    detector_results['embedded_train_recall'] = recall_score(y_embedded_noraml_and_adv_train, embedded_train_predictions)
+    detector_results['embedded_train_recall'] = recall_score(y_embedded_noraml_and_adv_train,
+                                                             embedded_train_predictions)
     detector_results['embedded_train_precision'] = precision_score(y_embedded_noraml_and_adv_train,
                                                                    embedded_train_predictions)
     detector_results['embedded_test_predicted_adv'] = np.count_nonzero(embedded_test_predictions)
@@ -781,7 +910,7 @@ def _check_simple_detector(X_original_normal_train, X_original_normal_test, X_or
     print(f"Embedded Test Precision: {precision_score(y_embedded_noraml_and_adv_test, embedded_test_predictions)}")
     print('\n\n')
 
-    joblib.dump(detector_results, experiment_output / 'detector_results.jblib')
+    joblib.dump(detector_results, experiment_output / 'detector_results.jblib', compress=1)
 
 
 def dataset_spliter(X, y, need_test=True, X_test=None, y_test=None):
@@ -799,13 +928,15 @@ def dataset_spliter(X, y, need_test=True, X_test=None, y_test=None):
     else:
         dataset_split_portions = {
             'knn_org_perf': 0.05,
-            'xgboost': 0.40,
+            'xgboost': 0.30,
             'embedding_model': 0.35,
-            'detector_normal_train': 0.05,
-            'detector_adv_train': 0.05,
-            'detector_normal_test': 0.05,
-            'detector_adv_test': 0.05,
+            'detector_normal_train': 0.075,
+            'detector_adv_train': 0.075,
+            'detector_normal_test': 0.075,
+            'detector_adv_test': 0.075,
         }
+        X_final_test = X_test
+        y_final_test = y_test
 
     # KNN original performance dataset - 5%
     X_knn_org_perf, X_rest, y_knn_org_perf, y_rest = train_test_split(X, y, shuffle=True,
@@ -847,20 +978,17 @@ def dataset_spliter(X, y, need_test=True, X_test=None, y_test=None):
                                                                                                      1 - detector_adv_train_previous))
 
     # Adversarial dataset to test the detector - 1%
-    detector_adv_test_previous = detector_adv_train_previous + dataset_split_portions['detector_adv_train']
-    X_detector_test_adv, X_final_test, y_detector_test_adv, y_final_test = train_test_split(X_rest, y_rest,
-                                                                                            shuffle=True,
-                                                                                            train_size=
-                                                                                            dataset_split_portions[
-                                                                                                'detector_adv_test'] / (
-                                                                                                    1 - detector_adv_test_previous))
-
-    # Final test set - 10%
-    if not need_test:
-        X_embedding = np.vstack([X_embedding, X_final_test])
-        y_embedding = np.hstack([y_embedding, y_final_test])
-        X_final_test = X_test
-        y_final_test = y_test
+    if need_test:
+        detector_adv_test_previous = detector_adv_train_previous + dataset_split_portions['detector_adv_train']
+        X_detector_test_adv, X_final_test, y_detector_test_adv, y_final_test = train_test_split(X_rest, y_rest,
+                                                                                                shuffle=True,
+                                                                                                train_size=
+                                                                                                dataset_split_portions[
+                                                                                                    'detector_adv_test'] / (
+                                                                                                        1 - detector_adv_test_previous))
+    else:
+        X_detector_test_adv = X_rest
+        y_detector_test_adv = y_rest
 
     return {
         'knn_org_perf': (X_knn_org_perf, y_knn_org_perf),
@@ -881,12 +1009,14 @@ if __name__ == '__main__':
     parser.add_argument('dataset', type=str, help='The dataset to load')
     parser.add_argument('attack_type', type=str, help='Attack type')
     parser.add_argument('norm', type=str, help='Attack norm')
+    parser.add_argument('detector_type', type=str, help="Detector type")
 
     args = parser.parse_args()
 
     dataset = args.dataset
     norm = np.inf if args.norm == 'inf' else int(args.norm)
     attack_type = args.attack_type
+    detector_type = args.detector_type
 
     config = template_config
     config['dataset']['dataset_name'] = dataset
@@ -894,4 +1024,5 @@ if __name__ == '__main__':
     config['adv_samples']['search_mode'] = attack_type
     config['detector_adv_samples']['norm_type'] = norm
     config['detector_adv_samples']['search_mode'] = attack_type
+    config['detector_config']['type'] = detector_type
     trees_model_v1 = full_experiment_cycle(config, load_from_disk=True)
