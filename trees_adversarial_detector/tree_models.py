@@ -17,8 +17,8 @@ def train_tree_model(model_type, X, y, model_params=None):
     if model_type == 'RandomForest':
         if model_params is None:
             # model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.75, 'max_depth': 8, 'n_estimators': 25}
-            model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.5, 'max_depth': 10, 'verbosity': 3,
-                            'n_estimators': 30}
+            model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.5, 'max_depth': 15, 'verbosity': 3,
+                            'n_estimators': 100}
             # model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_by_tree': 0.75}
         return train_randomforest_model(X, y, model_params)
 

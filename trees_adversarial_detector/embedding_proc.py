@@ -14,7 +14,7 @@ from trees_adversarial_detector.tree_models import extract_nodes_samples, extrac
 
 ###########################################################################
 
-def extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree, document_path=None):
+def extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree, n_classes, document_path=None):
     # Extract the structure of the ensemble model
     forest_structure = extract_nodes_splits_per_tree(model)
 
@@ -26,7 +26,7 @@ def extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree
                              range(len(model.get_booster().get_dump()))}
 
     # Generate a dataset for the embedding process
-    dataset_per_tree = generate_dataset_routes_per_tree(forest_structure, X, nodes_samples_splited,
+    dataset_per_tree = generate_dataset_routes_per_tree(forest_structure, X, nodes_samples_splited, n_classes,
                                                         num_of_samples=embedding_dataset_size_per_tree)
 
     if document_path:
@@ -35,7 +35,7 @@ def extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree
     return dataset_per_tree
 
 
-def extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model, embedding_dataset_size_per_tree,
+def extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model, embedding_dataset_size_per_tree, n_classes,
                                                    document_path=None):
     # Extract the structure of the ensemble model
     forest_structure = extract_nodes_splits_per_tree(model)
@@ -54,6 +54,7 @@ def extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model, embedd
     dataset_per_tree = generate_dataset_routes_per_tree_new_samples(forest_structure, X_train, X_new,
                                                                     train_nodes_samples_splited,
                                                                     new_nodes_samples_splited,
+                                                                    n_classes,
                                                                     num_of_samples=embedding_dataset_size_per_tree)
 
     if document_path:
@@ -62,7 +63,7 @@ def extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model, embedd
     return dataset_per_tree
 
 
-def extract_embedding_dataset(X, model, embedding_dataset_size, document_path=None):
+def extract_embedding_dataset(X, model, embedding_dataset_size, n_classes, document_path=None):
     """
         Given a dataset and a trained model - extracting a dataset to calculate the embeddings of all of the samples
         in X regard the decision space in model
@@ -80,7 +81,7 @@ def extract_embedding_dataset(X, model, embedding_dataset_size, document_path=No
     nodes_samples = extract_nodes_samples(X, model)
 
     # Generate a dataset for the embedding process
-    embedding_X, embedding_y, num_nodes = generate_dataset_routes(forest_structure, X, nodes_samples,
+    embedding_X, embedding_y, num_nodes = generate_dataset_routes(forest_structure, X, nodes_samples, n_classes,
                                                                   num_of_samples=embedding_dataset_size)
 
     if document_path:
@@ -359,37 +360,87 @@ class SamplesDataLoader(keras.utils.Sequence):
 import pandas as pd
 
 
-def generate_dataset_routes_per_tree(split_nodes, X, nodes_samples, num_of_samples=1000000):
-    dataset_per_tree = {i: None for i in split_nodes.keys()}
-    aggregated_split_nodes = pd.DataFrame()
-    aggregated_nodes_samples = {}
-    for i in tqdm(split_nodes.keys(), total=len(split_nodes.keys()), desc="Extract dataset per tree"):
-        aggregated_split_nodes = pd.concat([aggregated_split_nodes, split_nodes[i]])
-        aggregated_nodes_samples = {**aggregated_nodes_samples, **nodes_samples[i]}
-        dataset_per_tree[i] = generate_dataset_routes(aggregated_split_nodes, X, aggregated_nodes_samples,
-                                                      num_of_samples,
-                                                      disable_tqdm=True)
+def generate_dataset_routes_per_tree(split_nodes, X, nodes_samples, n_classes, num_of_samples=1000000):
+    if n_classes > 2:
+        orig_num_estimators = len(split_nodes.keys()) // n_classes
+        dataset_per_tree = {i: None for i in range(orig_num_estimators)}
+        aggregated_split_nodes = pd.DataFrame()
+        aggregated_nodes_samples = {}
+
+        for i in tqdm(range(orig_num_estimators), total=orig_num_estimators, desc="Extract dataset per tree"):
+            class_splits = pd.concat([split_nodes[j] for j in range(i * n_classes, (i + 1) * n_classes)])
+
+            aggregated_split_nodes = pd.concat([aggregated_split_nodes, class_splits])
+
+            united_nodes_samples = {}
+            for t in range(i * n_classes, (i + 1) * n_classes):
+                united_nodes_samples = {**united_nodes_samples, **nodes_samples[t]}
+
+            aggregated_nodes_samples = {**aggregated_nodes_samples, **united_nodes_samples}
+            dataset_per_tree[i] = generate_dataset_routes(aggregated_split_nodes, X, aggregated_nodes_samples,
+                                                          num_of_samples,
+                                                          disable_tqdm=True)
+    else:
+        dataset_per_tree = {i: None for i in split_nodes.keys()}
+        aggregated_split_nodes = pd.DataFrame()
+        aggregated_nodes_samples = {}
+        for i in tqdm(split_nodes.keys(), total=len(split_nodes.keys()), desc="Extract dataset per tree"):
+            aggregated_split_nodes = pd.concat([aggregated_split_nodes, split_nodes[i]])
+            aggregated_nodes_samples = {**aggregated_nodes_samples, **nodes_samples[i]}
+            dataset_per_tree[i] = generate_dataset_routes(aggregated_split_nodes, X, aggregated_nodes_samples,
+                                                          num_of_samples,
+                                                          disable_tqdm=True)
+
     return dataset_per_tree
 
 
 def generate_dataset_routes_per_tree_new_samples(split_nodes, X_train, X_new, train_nodes_samples, new_nodes_samples,
+                                                 n_classes,
                                                  num_of_samples=1000000):
-    dataset_per_tree = {i: None for i in split_nodes.keys()}
-    aggregated_split_nodes = pd.DataFrame()
-    aggregated_train_nodes_samples = {}
-    aggregated_new_nodes_samples = {}
-    for i in tqdm(split_nodes.keys(), total=len(split_nodes.keys()), desc="Extract dataset per tree"):
-        aggregated_split_nodes = pd.concat([aggregated_split_nodes, split_nodes[i]])
-        aggregated_train_nodes_samples = {**aggregated_train_nodes_samples, **train_nodes_samples[i]}
-        aggregated_new_nodes_samples = {**aggregated_new_nodes_samples, **new_nodes_samples[i]}
-        dataset_per_tree[i] = generate_dataset_routes_for_new_set(aggregated_split_nodes, X_train, X_new,
-                                                                  aggregated_train_nodes_samples,
-                                                                  aggregated_new_nodes_samples,
-                                                                  num_of_samples, disable_tqdm=True)
+    if n_classes > 2:
+        orig_num_estimators = len(split_nodes.keys()) // n_classes
+        dataset_per_tree = {i: None for i in range(orig_num_estimators)}
+        aggregated_split_nodes = pd.DataFrame()
+        aggregated_train_nodes_samples = {}
+        aggregated_new_nodes_samples = {}
+
+        for i in tqdm(range(orig_num_estimators), total=orig_num_estimators, desc="Extract dataset per tree"):
+            class_splits = pd.concat([split_nodes[j] for j in range(i * n_classes, (i + 1) * n_classes)])
+
+            aggregated_split_nodes = pd.concat([aggregated_split_nodes, class_splits])
+
+            united_train_nodes_samples = {}
+            for t in range(i * n_classes, (i + 1) * n_classes):
+                united_train_nodes_samples = {**united_train_nodes_samples, **train_nodes_samples[t]}
+            aggregated_train_nodes_samples = {**aggregated_train_nodes_samples, **united_train_nodes_samples}
+
+            united_test_nodes_samples = {}
+            for t in range(i * n_classes, (i + 1) * n_classes):
+                united_test_nodes_samples = {**united_test_nodes_samples, **new_nodes_samples[t]}
+            aggregated_new_nodes_samples = {**aggregated_new_nodes_samples, **united_test_nodes_samples}
+
+            dataset_per_tree[i] = generate_dataset_routes_for_new_set(aggregated_split_nodes, X_train, X_new,
+                                                                      aggregated_train_nodes_samples,
+                                                                      aggregated_new_nodes_samples,
+                                                                      num_of_samples, disable_tqdm=True)
+    else:
+        dataset_per_tree = {i: None for i in split_nodes.keys()}
+        aggregated_split_nodes = pd.DataFrame()
+        aggregated_train_nodes_samples = {}
+        aggregated_new_nodes_samples = {}
+        for i in tqdm(split_nodes.keys(), total=len(split_nodes.keys()), desc="Extract dataset per tree"):
+            aggregated_split_nodes = pd.concat([aggregated_split_nodes, split_nodes[i]])
+            aggregated_train_nodes_samples = {**aggregated_train_nodes_samples, **train_nodes_samples[i]}
+            aggregated_new_nodes_samples = {**aggregated_new_nodes_samples, **new_nodes_samples[i]}
+            dataset_per_tree[i] = generate_dataset_routes_for_new_set(aggregated_split_nodes, X_train, X_new,
+                                                                      aggregated_train_nodes_samples,
+                                                                      aggregated_new_nodes_samples,
+                                                                      num_of_samples, disable_tqdm=True)
+
     return dataset_per_tree
 
 
-def generate_dataset_routes(split_nodes, X, nodes_samples, num_of_samples=1000000, disable_tqdm=False):
+def generate_dataset_routes(split_nodes, X, nodes_samples, n_classes, num_of_samples=1000000, disable_tqdm=False):
     """
         Creating a dataset for the embedding process.
         <node, sample_i, sample_j, does the samples agree on the node split? >
@@ -412,14 +463,23 @@ def generate_dataset_routes(split_nodes, X, nodes_samples, num_of_samples=100000
     sampled_samples_2 = []
     for i in tqdm(range(num_of_samples), total=num_of_samples, desc='Sample samples and nodes for embedding dataset',
                   disable=disable_tqdm):
-        sampled_nodes.append(random.choice(range(nodes_n)))
+        try:
+            sampled_node = random.choice(range(nodes_n))
 
-        sampled_samples_1.append(random.choice(nodes_samples[forest_nodes_ids[sampled_nodes[-1]]]))
-        sampled_samples_2.append(random.choice(nodes_samples[forest_nodes_ids[sampled_nodes[-1]]]))
+            sampled_sample_1 = random.choice(nodes_samples[forest_nodes_ids[sampled_node]])
+            sampled_sample_2 = random.choice(nodes_samples[forest_nodes_ids[sampled_node]])
+        except Exception as e:
+            print(e)
+            continue
+        sampled_nodes.append(sampled_node)
+        sampled_samples_1.append(sampled_sample_1)
+        sampled_samples_2.append(sampled_sample_2)
 
     samples = []
     context_samples = []
     labels = []
+
+    num_of_samples = len(sampled_nodes)
 
     for i in tqdm(range(num_of_samples), total=num_of_samples, desc='Calculating labels', disable=disable_tqdm):
         # feature_index = int(forest_nodes_feature[sampled_nodes[i]])
@@ -468,14 +528,24 @@ def generate_dataset_routes_for_new_set(split_nodes, X_train, X_new,
     sampled_samples_2 = []
     for i in tqdm(range(num_of_samples), total=num_of_samples, desc='Sample samples and nodes for embedding dataset',
                   disable=disable_tqdm):
-        sampled_nodes.append(random.choice(range(nodes_n)))
+        try:
+            sampled_node = random.choice(range(nodes_n))
 
-        sampled_samples_1.append(random.choice(new_nodes_samples[forest_nodes_ids[sampled_nodes[-1]]]))
-        sampled_samples_2.append(random.choice(train_nodes_samples[forest_nodes_ids[sampled_nodes[-1]]]))
+            sampled_sample_1 = random.choice(new_nodes_samples[forest_nodes_ids[sampled_node]])
+            sampled_sample_2 = random.choice(train_nodes_samples[forest_nodes_ids[sampled_node]])
+        except Exception as e:
+            print(e)
+            continue
+
+        sampled_nodes.append(sampled_node)
+        sampled_samples_1.append(sampled_sample_1)
+        sampled_samples_2.append(sampled_sample_2)
 
     samples = []
     context_samples = []
     labels = []
+
+    num_of_samples = len(sampled_nodes)
 
     # sampled node index to real node index
     new_node_idx_to_original_node_id = {}

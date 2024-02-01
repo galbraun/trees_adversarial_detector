@@ -21,6 +21,8 @@ def calculate_sample_switching_bayesian_log_likelihood(sample_labels_sequence, p
     for i in range(1, len(sample_labels_sequence)):
         if sample_labels_sequence[i] != sample_labels_sequence[i - 1]:
             sample_log_likelihood += np.log(probabilities[i - 1])
+        else:
+            sample_log_likelihood += np.log(1 - probabilities[i - 1])
     return sample_log_likelihood
 
 
@@ -41,8 +43,8 @@ def train_rounds_classifiers(train_embedding_models, y, n_estimators):
     return round_classifiers
 
 
-def generate_embedding_by_rounds(X, model, embedding_dataset_size_per_tree, samples_embd_dim, node_embd_dim):
-    dataset_per_tree = extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree)
+def generate_embedding_by_rounds(X, model, embedding_dataset_size_per_tree, n_classes, samples_embd_dim, node_embd_dim):
+    dataset_per_tree = extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree, n_classes)
 
     histories = []
     embedding_models = []
@@ -62,9 +64,9 @@ def generate_embedding_by_rounds(X, model, embedding_dataset_size_per_tree, samp
 
 
 def generate_embedding_by_round_new_samples(X_train, X_new, model, embedding_dataset_size_per_tree,
-                                            train_embedding_models, samples_embd_dim, node_embd_dim):
+                                            train_embedding_models, n_classes, samples_embd_dim, node_embd_dim):
     dataset_per_tree = extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model,
-                                                                      embedding_dataset_size_per_tree)
+                                                                      embedding_dataset_size_per_tree, n_classes)
 
     histories = []
     embedding_models = []

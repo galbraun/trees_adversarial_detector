@@ -15,8 +15,16 @@ CMC_DATA_PATH = 'data/contraceptive/cmc.data'
 MESSIDOR_DATA_PATH = 'data/messidor/messidor_features.arff'
 PHISHING_DATA_PATH = 'data/phishing/PhishingData.arff'
 ELECTRICITY_DATA_PATH = 'data/electricity/electricity-normalized.arff'  # https://www.openml.org/d/151
-KC1_DATA_PATH = 'data/KC1/'  # https://www.openml.org/d/1067
+KC1_DATA_PATH = 'data/KC1/kc1.arff'  # https://www.openml.org/d/1067
+SPEECH_DATA_PATH = 'data/speech/phpznF975.arff'  # https://www.openml.org/d/40910
+SPAMBASE_DATA_PATH = 'data/spambase/spambase.arff'  # https://www.openml.org/d/44095
+WAVEFORM_DATA_PATH = 'data/waveform-5000/waveform-5000.arff'  # https://www.openml.org/d/979
+WIND_DATA_PATH = 'data/wind/wind.arff'  # https://www.openml.org/d/847
 BREAST_CANCER_DATA_PATH = 'data/breast-cancer-wisconsin/breast-cancer-wisconsin.data'
+DRY_BEAN_DATA_PATH = 'data/dry-bean/Dry_Bean_Dataset.arff'
+ONLINE_SHOPPERS_DATA_PATH = 'data/online-shoppers/online_shoppers_intention.csv'
+BANK_MARKETING_DATA_PATH = 'data/bank-marketing/bank-additional-full.csv'
+# https://archive-beta.ics.uci.edu/ml/datasets/madelon
 
 ROBUSTTREE_BREAST_CANCER_TRAIN = 'robusttree_datasets_splits/breast_cancer_scale0.train'
 ROBUSTTREE_BREAST_CANCER_TEST = 'robusttree_datasets_splits/breast_cancer_scale0.test'
@@ -31,10 +39,25 @@ ROBUSTTREE_IJCNN1_TRAIN = 'robusttree_datasets_splits/ijcnn1s0'
 ROBUSTTREE_IJCNN1_TEST = 'robusttree_datasets_splits/ijcnn1s0.t'
 
 ROBUSTTREE_WEBSPAM_TRAIN = 'robusttree_datasets_splits/webspam_wc_normalized_unigram.svm0.train'
-ROBUSTTREE_WEBSPAM_TEST = 'robusttree_datasets_splits/webspam_wc_normialized_unigram.svm0.test'
+ROBUSTTREE_WEBSPAM_TEST = 'robusttree_datasets_splits/webspam_wc_normalized_unigram.svm0.test'
 
 ROBUSTTREE_MNIST26_TRAIN = 'robusttree_datasets_splits/binary_mnist0'
 ROBUSTTREE_MNIST26_TEST = 'robusttree_datasets_splits/binary_mnist0.t'
+
+ROBUSTTREE_MNIST_TRAIN = 'robusttree_datasets_splits/ori_mnist.train0'
+ROBUSTTREE_MNIST_TEST = 'robusttree_datasets_splits/ori_mnist.test0'
+
+ROBUSTTREE_COVTYPE_TRAIN = 'robusttree_datasets_splits/covtype.scale01.train0'
+ROBUSTTREE_COVTYPE_TEST = 'robusttree_datasets_splits/covtype.scale01.test0'
+
+ROBUSTTREE_FASHION_TRAIN = 'robusttree_datasets_splits/fashion.train0'
+ROBUSTTREE_FASHION_TEST = 'robusttree_datasets_splits/fashion.test0'
+
+ROBUSTTREE_HIGGS_TRAIN = 'robusttree_datasets_splits/HIGGS_s.train0'
+ROBUSTTREE_HIGGS_TEST = 'robusttree_datasets_splits/HIGGS_s.test0'
+
+ROBUSTTREE_SENSORLESS_TRAIN = 'robusttree_datasets_splits/Sensorless.scale.tr0'
+ROBUSTTREE_SENSORLESS_TEST = 'robusttree_datasets_splits/Sensorless.scale.val0'
 
 
 class DatasetUnkownException(Exception):
@@ -46,7 +69,7 @@ def load_robusttree_dataset(dataset_name):
         return load_robusttree_breast_cancer()
 
     if dataset_name == "codrna":
-        return load_robusttree_breast_cancer()
+        return load_robusttree_codrna()
 
     if dataset_name == "diabetes":
         return load_robusttree_diabetes()
@@ -59,6 +82,21 @@ def load_robusttree_dataset(dataset_name):
 
     if dataset_name == "mnist26":
         return load_robusttree_mnist26()
+
+    if dataset_name == "mnist":
+        return load_robusttree_mnist()
+
+    if dataset_name == "covtype":
+        return load_robusttree_covtype()
+
+    if dataset_name == "fashion":
+        return load_robusttree_fashion()
+
+    if dataset_name == "higgs":
+        return load_robusttree_higgs()
+
+    if dataset_name == "sensorless":
+        return load_robusttree_sensorless()
 
     raise DatasetUnkownException(f'there is no familiar dataset with the name {dataset_name}')
 
@@ -105,7 +143,45 @@ def load_robusttree_mnist26():
     return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
 
 
+def load_robusttree_mnist():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_MNIST_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_MNIST_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_covtype():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_COVTYPE_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_COVTYPE_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_fashion():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_FASHION_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_FASHION_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_higgs():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_HIGGS_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_HIGGS_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
+def load_robusttree_sensorless():
+    X_train, y_train = load_svmlight_file(ROBUSTTREE_SENSORLESS_TRAIN)
+    X_test, y_test = load_svmlight_file(ROBUSTTREE_SENSORLESS_TEST)
+
+    return np.array(X_train.todense()), np.array(X_test.todense()), y_train, y_test
+
+
 def load_dataset(dataset_name):
+    if dataset_name == "dry_bean":
+        return load_prepare_dry_bean_dataset()
+
     if dataset_name == 'shuttle':
         return load_prepare_shuttle_dataset()
 
@@ -145,10 +221,139 @@ def load_dataset(dataset_name):
     if dataset_name == "mnist_normalized":
         return load_prepare_mnist_normalized_dataset()
 
+    if dataset_name == "online_shoppers":
+        return load_prepare_online_shoppers_dataset()
+
+    if dataset_name == "bank_marketing":
+        return load_prepare_bank_marketing()
+
+    if dataset_name == "kc1":
+        return load_prepare_kc1()
+
+    if dataset_name == "speech":
+        return load_prepare_speech()
+
+    if dataset_name == "spambase":
+        return load_prepare_spambase()
+
+    if dataset_name == "waveform":
+        return load_prepare_waveform()
+
+    if dataset_name == "wind":
+        return load_prepare_wind()
+
     # if dataset_name == 'diabetes':
     #     return load_prepare_diabetestype_dataset()
 
     raise DatasetUnkownException(f'there is no familiar dataset with the name {dataset_name}')
+
+
+def load_prepare_wind():
+    df = pd.DataFrame(arff.loadarff(WIND_DATA_PATH)[0])
+
+    df['binaryClass'] = df['binaryClass'].map({b'N': 0, b'P': 1})
+
+    y = df['binaryClass'].values
+    X = df.drop(columns=['binaryClass']).values
+
+    return X, y
+
+
+def load_prepare_waveform():
+    df = pd.DataFrame(arff.loadarff(WAVEFORM_DATA_PATH)[0])
+
+    df['binaryClass'] = df['binaryClass'].map({b'N': 0, b'P': 1})
+
+    y = df['binaryClass'].values
+    X = df.drop(columns=['binaryClass']).values
+
+    return X, y
+
+
+def load_prepare_spambase():
+    df = pd.DataFrame(arff.loadarff(SPAMBASE_DATA_PATH)[0])
+
+    df['class'] = df['class'].map({b'0': 0, b'1': 1})
+
+    y = df['class'].values
+    X = df.drop(columns=['class']).values
+
+    return X, y
+
+
+def load_prepare_speech():
+    df = pd.DataFrame(arff.loadarff(SPEECH_DATA_PATH)[0])
+
+    df['Target'] = df['Target'].map({b'Anomaly': 1, b'Normal': 0})
+
+    y = df['Target'].values
+    X = df.drop(columns=['Target']).values
+
+    return X, y
+
+
+def load_prepare_kc1():
+    df = pd.DataFrame(arff.loadarff(KC1_DATA_PATH)[0])
+
+    df['defects'] = df['defects'].map({b'true': 1, b'false': 0})
+
+    y = df['defects'].values
+    X = df.drop(columns=['defects']).values
+
+    return X, y
+
+
+def load_prepare_bank_marketing():
+    # https://archive-beta.ics.uci.edu/ml/datasets/bank+marketing
+    df = pd.read_csv(BANK_MARKETING_DATA_PATH, delimiter=';')
+    df = df.replace('unknown', np.nan).dropna()
+    df = pd.get_dummies(df, columns=['job', 'poutcome'])
+
+    df['marital'] = df['marital'].map({'married': 0, 'single': 1, 'divorced': 3})
+    df['education'] = df['education'].map({'illiterate': 0, 'basic.4y': 1, 'basic.6y': 2, 'basic.9y': 3,
+                                           'high.school': 4, 'university.degree': 5, 'professional.course': 6})
+    df['default'] = df['default'].map({'yes': 1, 'no': 0})
+    df['housing'] = df['housing'].map({'yes': 1, 'no': 0})
+    df['loan'] = df['loan'].map({'yes': 1, 'no': 0})
+    df['contact'] = df['contact'].map({'telephone': 1, 'cellular': 0})
+    df['month'] = df['month'].map({'may': 5, 'jul': 7, 'aug': 8, 'jun': 6, 'nov': 11, 'apr': 4, 'oct': 10, 'sep': 9,
+                                   'mar': 3, 'dec': 12})
+    df['day_of_week'] = df['day_of_week'].map({'thu': 5, 'mon': 2, 'wed': 4, 'tue': 3, 'fri': 6})
+    df['y'] = df['y'].map({'yes': 1, 'no': 0})
+
+    y = df['y'].values
+    X = df.drop(columns=['y']).values
+
+    return X, y
+
+
+def load_prepare_online_shoppers_dataset():
+    # https://archive-beta.ics.uci.edu/ml/datasets/online+shoppers+purchasing+intention+dataset
+    df = pd.read_csv(ONLINE_SHOPPERS_DATA_PATH)
+
+    df['Revenue'] = df['Revenue'].astype(int)
+    df['Weekend'] = df['Weekend'].astype(int)
+    df['Month'] = df['Month'].map({'May': 5, 'Nov': 11, 'Mar': 3, 'Dec': 12, 'Oct': 10, 'Sep': 9, 'Aug': 8,
+                                   'Jul': 7, 'June': 6, 'Feb': 2})
+    df = pd.get_dummies(df, columns=['VisitorType'])
+
+    y = df['Revenue'].values
+    X = df.drop(columns=['Revenue']).values
+
+    return X, y
+
+
+def load_prepare_dry_bean_dataset():
+    # https://archive-beta.ics.uci.edu/ml/datasets/dry+bean+dataset
+    df = pd.DataFrame(arff.loadarff(DRY_BEAN_DATA_PATH)[0])
+
+    df['Class'] = df['Class'].map(
+        {b'DERMASON': 0, b'SIRA': 1, b'SEKER': 2, b'HOROZ': 3, b'CALI': 4, b'BARBUNYA': 5, b'BOMBAY': 6})
+
+    y = df['Class'].values
+    X = df.drop(columns=['Class']).values
+
+    return X, y
 
 
 def load_prepare_breast_cancer():
@@ -300,6 +505,7 @@ def load_prepare_phishing_dataset():
     for col in df.columns:
         df[col] = df[col].astype(int)
 
+    df = df.replace({-1: 0, 0: 1, 1: 2})
     y = df['Result'].values
     X = df.drop(columns=['Result']).values
 
