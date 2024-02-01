@@ -90,23 +90,47 @@ def extract_embedding_dataset(X, model, embedding_dataset_size, n_classes, docum
     return embedding_X, embedding_y, num_nodes
 
 
-def extract_new_samples_embedding_dataset(X_train, X_new, model, embedding_dataset_size, document_path=None):
+def extract_new_samples_embedding_dataset(X_train, X_new, model, embedding_dataset_size, document_path=None, return_times=False):
     # Extract the structure of the ensemble model
     forest_structure = extract_nodes_splits(model)
 
+    if return_times:
+        import time
+        start_old_nodes_dist = time.time()
+
     # Calculate the distribution of the samples inside the model of trees
     train_nodes_samples = extract_nodes_samples(X_train, model)
+
+    if return_times:
+        import time
+        start_new_nodes_dist = time.time()
+
     new_nodes_samples = extract_nodes_samples(X_new, model)
+
+    if return_times:
+        import time
+        end_nodes_dist = time.time()
 
     # Generate a dataset for the embedding process
     embedding_X, embedding_y, num_nodes = generate_dataset_routes_for_new_set(forest_structure, X_train, X_new,
                                                                               train_nodes_samples, new_nodes_samples,
                                                                               num_of_samples=embedding_dataset_size)
 
+    if return_times:
+        import time
+        end_generate_routes_dist = time.time()
+
+
     if document_path:
         print("Enter path so we can document everything")
 
-    return embedding_X, embedding_y, num_nodes
+    if return_times:
+        return embedding_X, embedding_y, num_nodes, {'old_samples_dist': start_old_nodes_dist - start_new_nodes_dist,
+                                                     'new_samples_dist': start_new_nodes_dist - end_nodes_dist,
+                                                     'build_dataset': end_nodes_dist - end_generate_routes_dist
+                                                     }
+    else:
+        return embedding_X, embedding_y, num_nodes
 
 
 # def train_embedding(X_embedding, y_embedding, num_nodes, num_samples, num_features, val_size=0.1, epochs=5, logdir=None):
