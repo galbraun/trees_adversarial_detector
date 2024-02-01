@@ -170,7 +170,7 @@ def check_simple_detector(dataset_name, directory, num_features):
 
     # xgb_original = xgboost.XGBClassifier(n_jobs=-1, n_estimators=10, max_depth=3).fit(X_original_normal_and_adv_train,
     #                                                                                  y_original_noraml_and_adv_train)
-    xgb_original = FaissKNeighbors(k=5, faiss=faiss)
+    xgb_original = FaissKNeighbors(k=10, faiss=faiss)
     xgb_original.fit(X_original_normal_and_adv_train.astype('float32'), y_original_noraml_and_adv_train.astype('float32'))
 
     print('\n\n')
@@ -214,7 +214,7 @@ def check_simple_detector(dataset_name, directory, num_features):
 
     # xgb_embedded = xgboost.XGBClassifier(n_jobs=-1, n_estimators=10, max_depth=3).fit(X_embedded_normal_and_adv_train,
     #                                                                                  y_embedded_noraml_and_adv_train)
-    xgb_embedded = FaissKNeighbors(k=5, faiss=faiss)
+    xgb_embedded = FaissKNeighbors(k=10, faiss=faiss)
     xgb_embedded.fit(X_embedded_normal_and_adv_train.astype('float32'), y_embedded_noraml_and_adv_train.astype('float32'))
 
     print('\n\n')

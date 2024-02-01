@@ -11,14 +11,15 @@ def train_tree_model(model_type, X, y, model_params=None):
     if model_type == 'XGBoost':
         if model_params is None:
             model_params = {'random_state': 84, 'n_jobs': -1, 'n_estimators': 10, 'max_depth': 7, 'verbosity': 3}
-            #model_params = {'random_state': 84, 'n_jobs': -1}
+            # model_params = {'random_state': 84, 'n_jobs': -1}
         return train_xgboost_model(X, y, model_params)
 
     if model_type == 'RandomForest':
         if model_params is None:
-            #model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.75, 'max_depth': 8, 'n_estimators': 25}
-            model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.5, 'max_depth': 10, 'verbosity': 3, 'n_estimators': 30}
-            #model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_by_tree': 0.75}
+            # model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.75, 'max_depth': 8, 'n_estimators': 25}
+            model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_bytree': 0.5, 'max_depth': 10, 'verbosity': 3,
+                            'n_estimators': 30}
+            # model_params = {'random_state': 84, 'n_jobs': -1, 'colsample_by_tree': 0.75}
         return train_randomforest_model(X, y, model_params)
 
     raise ModelUnkownException(f'there is no familiar model with the name {model_type}')
@@ -52,6 +53,7 @@ def extract_nodes_splits(model):
     df_splits['feature_index'] = [int(v) for v in df_splits.Feature.str.replace("f", "")]
     return df_splits
 
+
 def extract_nodes_splits_per_tree(model):
     # Extract the model information to a dataframe
     df = model.get_booster().trees_to_dataframe()
@@ -64,6 +66,7 @@ def extract_nodes_splits_per_tree(model):
 
     splitted_by_tree = dict(tuple(df_splits.groupby('Tree')))
     return splitted_by_tree
+
 
 def extract_root_to_leaf_routes_for_forest(xgb):
     """

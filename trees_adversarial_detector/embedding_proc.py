@@ -13,7 +13,7 @@ from trees_adversarial_detector.tree_models import extract_nodes_samples, extrac
 
 ###########################################################################
 
-def extract_embedding_dataset_pet_tree(X, model, embedding_dataset_size_per_tree, document_path=None):
+def extract_embedding_dataset_per_tree(X, model, embedding_dataset_size_per_tree, document_path=None):
     # Extract the structure of the ensemble model
     forest_structure = extract_nodes_splits_per_tree(model)
 
@@ -21,12 +21,39 @@ def extract_embedding_dataset_pet_tree(X, model, embedding_dataset_size_per_tree
     nodes_samples = extract_nodes_samples(X, model)
 
     # TODO: split nodes_samples by the tree id, each node starts with "tree_id-node_id"
-    nodes_samples_splited = {i: {n: nodes_samples[n] for n in nodes_samples if n.startswith(str(i))} for i in
+    nodes_samples_splited = {i: {n: nodes_samples[n] for n in nodes_samples if n.startswith(f'{str(i)}-')} for i in
                              range(len(model.get_booster().get_dump()))}
 
     # Generate a dataset for the embedding process
     dataset_per_tree = generate_dataset_routes_per_tree(forest_structure, X, nodes_samples_splited,
                                                         num_of_samples=embedding_dataset_size_per_tree)
+
+    if document_path:
+        print("Enter path so we can document everything")
+
+    return dataset_per_tree
+
+
+def extract_new_samples_embedding_dataset_per_tree(X_train, X_new, model, embedding_dataset_size_per_tree,
+                                                   document_path=None):
+    # Extract the structure of the ensemble model
+    forest_structure = extract_nodes_splits_per_tree(model)
+
+    # Calculate the distribution of the samples inside the model of trees
+    train_nodes_samples = extract_nodes_samples(X_train, model)
+    new_nodes_samples = extract_nodes_samples(X_new, model)
+
+    # TODO: split nodes_samples by the tree id, each node starts with "tree_id-node_id"
+    train_nodes_samples_splited = {i: {n: train_nodes_samples[n] for n in train_nodes_samples if
+                                       n.startswith(f'{str(i)}-')} for i in range(len(model.get_booster().get_dump()))}
+    new_nodes_samples_splited = {i: {n: new_nodes_samples[n] for n in new_nodes_samples if n.startswith(f'{str(i)}-')}
+                                 for i in range(len(model.get_booster().get_dump()))}
+
+    # Generate a dataset for the embedding process
+    dataset_per_tree = generate_dataset_routes_per_tree_new_samples(forest_structure, X_train, X_new,
+                                                                    train_nodes_samples_splited,
+                                                                    new_nodes_samples_splited,
+                                                                    num_of_samples=embedding_dataset_size_per_tree)
 
     if document_path:
         print("Enter path so we can document everything")
@@ -337,6 +364,23 @@ def generate_dataset_routes_per_tree(split_nodes, X, nodes_samples, num_of_sampl
     return dataset_per_tree
 
 
+def generate_dataset_routes_per_tree_new_samples(split_nodes, X_train, X_new, train_nodes_samples, new_nodes_samples,
+                                                 num_of_samples=1000000):
+    dataset_per_tree = {i: None for i in split_nodes.keys()}
+    aggregated_split_nodes = pd.DataFrame()
+    aggregated_train_nodes_samples = {}
+    aggregated_new_nodes_samples = {}
+    for i in tqdm(split_nodes.keys(), total=len(split_nodes.keys()), desc="Extract dataset per tree"):
+        aggregated_split_nodes = pd.concat([aggregated_split_nodes, split_nodes[i]])
+        aggregated_train_nodes_samples = {**aggregated_train_nodes_samples, **train_nodes_samples[i]}
+        aggregated_new_nodes_samples = {**aggregated_new_nodes_samples, **new_nodes_samples[i]}
+        dataset_per_tree[i] = generate_dataset_routes_for_new_set(aggregated_split_nodes, X_train, X_new,
+                                                                  aggregated_train_nodes_samples,
+                                                                  aggregated_new_nodes_samples,
+                                                                  num_of_samples, disable_tqdm=True)
+    return dataset_per_tree
+
+
 def generate_dataset_routes(split_nodes, X, nodes_samples, num_of_samples=1000000, disable_tqdm=False):
     """
         Creating a dataset for the embedding process.
@@ -409,7 +453,7 @@ def generate_dataset_routes_for_new_set(split_nodes, X_train, X_new,
     forest_nodes_ids = relevnat_splits['ID'].values
     forest_nodes_feature = relevnat_splits['feature_index'].values
     forest_nodes_splits = relevnat_splits['Split'].values
-    nodes_n = relevnat_splits.shape[0]
+    nodes_n = len(forest_nodes_ids)
 
     sampled_nodes = []
     sampled_samples_1 = []
@@ -424,6 +468,12 @@ def generate_dataset_routes_for_new_set(split_nodes, X_train, X_new,
     samples = []
     context_samples = []
     labels = []
+
+    # sampled node index to real node index
+    new_node_idx_to_original_node_id = {}
+    for i in range(nodes_n):
+        new_node_id = forest_nodes_ids[i]
+        new_node_idx_to_original_node_id[i] = int(np.where(split_nodes['ID'].values == new_node_id)[0])
 
     for i in tqdm(range(num_of_samples), total=num_of_samples, desc='Calculating labels', disable=disable_tqdm):
         # feature_index = int(forest_nodes_feature[sampled_nodes[i]])
@@ -440,6 +490,6 @@ def generate_dataset_routes_for_new_set(split_nodes, X_train, X_new,
             same_direction = False
         # # TODO: maybe 4 classes? same_direction*2, different_direction*2
         labels.append(same_direction)
-        samples.append((sampled_samples_1[i], sampled_samples_2[i], sampled_nodes[i]))
+        samples.append((sampled_samples_1[i], sampled_samples_2[i], new_node_idx_to_original_node_id[sampled_nodes[i]]))
 
-    return np.asarray(samples), np.asarray(labels), nodes_n
+    return np.asarray(samples), np.asarray(labels), split_nodes.shape[0]
