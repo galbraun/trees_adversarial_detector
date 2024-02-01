@@ -125,9 +125,9 @@ def extract_new_samples_embedding_dataset(X_train, X_new, model, embedding_datas
         print("Enter path so we can document everything")
 
     if return_times:
-        return embedding_X, embedding_y, num_nodes, {'old_samples_dist': start_old_nodes_dist - start_new_nodes_dist,
-                                                     'new_samples_dist': start_new_nodes_dist - end_nodes_dist,
-                                                     'build_dataset': end_nodes_dist - end_generate_routes_dist
+        return embedding_X, embedding_y, num_nodes, {'old_samples_dist': start_new_nodes_dist - start_old_nodes_dist,
+                                                     'new_samples_dist': end_nodes_dist - start_new_nodes_dist,
+                                                     'build_dataset': end_generate_routes_dist - end_nodes_dist
                                                      }
     else:
         return embedding_X, embedding_y, num_nodes
