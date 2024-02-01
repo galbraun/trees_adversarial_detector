@@ -1,27 +1,23 @@
-import argparse
-import joblib
 import json
-import numpy as np
-import os
-import pathlib
+import json
 import random
-import sklearn
 import time
-import xgboost
-from numpy import linalg as LA
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from tqdm import tqdm
-from sklearn.metrics import roc_auc_score,precision_score, accuracy_score, recall_score
-import faiss
 
+import faiss
+import joblib
+import numpy as np
+import sklearn
+from numpy import linalg as LA
+from sklearn.metrics import precision_score, recall_score
+from tqdm import tqdm
+
+from trees_adversarial_detector.evaluation import FaissKNeighbors
 from trees_adversarial_detector.tree_ensemble_attack.baselines.HSJA import HSJA
 from trees_adversarial_detector.tree_ensemble_attack.baselines.OPT_attack_lf import OPT_attack_lf
 from trees_adversarial_detector.tree_ensemble_attack.baselines.Sign_OPT_cpu import OPT_attack_sign_SGD_cpu
 from trees_adversarial_detector.tree_ensemble_attack.baselines.cube_attack import Cube
 from trees_adversarial_detector.tree_ensemble_attack.baselines.models_cpu import CPUModel, XGBoostModel, \
     XGBoostTestLoader
-from trees_adversarial_detector.evaluation import FaissKNeighbors
 
 attack_list = {
     "opt": OPT_attack_lf,
@@ -171,10 +167,12 @@ def check_simple_detector(dataset_name, directory, num_features):
     # xgb_original = xgboost.XGBClassifier(n_jobs=-1, n_estimators=10, max_depth=3).fit(X_original_normal_and_adv_train,
     #                                                                                  y_original_noraml_and_adv_train)
     xgb_original = FaissKNeighbors(k=10, faiss=faiss)
-    xgb_original.fit(X_original_normal_and_adv_train.astype('float32'), y_original_noraml_and_adv_train.astype('float32'))
+    xgb_original.fit(X_original_normal_and_adv_train.astype('float32'),
+                     y_original_noraml_and_adv_train.astype('float32'))
 
     print('\n\n')
-    print(f"Original Train Predicted Adv: {np.count_nonzero(xgb_original.predict(X_original_normal_and_adv_train.astype('float32')))}")
+    print(
+        f"Original Train Predicted Adv: {np.count_nonzero(xgb_original.predict(X_original_normal_and_adv_train.astype('float32')))}")
     # print(
     #     f"Original Train ROC AUC: {roc_auc_score(y_original_noraml_and_adv_train, xgb_original.predict_proba(X_original_normal_and_adv_train.astype('float32'))[:, 1])}")
     print(
@@ -182,7 +180,8 @@ def check_simple_detector(dataset_name, directory, num_features):
     print(
         f"Original Train Precision: {precision_score(y_original_noraml_and_adv_train, xgb_original.predict(X_original_normal_and_adv_train.astype('float32')))}")
     print('\n\n')
-    print(f"Original Test Predicted Adv: {np.count_nonzero(xgb_original.predict(X_original_normal_and_adv_test.astype('float32')))}")
+    print(
+        f"Original Test Predicted Adv: {np.count_nonzero(xgb_original.predict(X_original_normal_and_adv_test.astype('float32')))}")
     # print(
     #     f"Original Test ROC AUC: {roc_auc_score(y_original_noraml_and_adv_test, xgb_original.predict(X_original_normal_and_adv_test)[:, 1])}")
     print(
@@ -215,10 +214,12 @@ def check_simple_detector(dataset_name, directory, num_features):
     # xgb_embedded = xgboost.XGBClassifier(n_jobs=-1, n_estimators=10, max_depth=3).fit(X_embedded_normal_and_adv_train,
     #                                                                                  y_embedded_noraml_and_adv_train)
     xgb_embedded = FaissKNeighbors(k=10, faiss=faiss)
-    xgb_embedded.fit(X_embedded_normal_and_adv_train.astype('float32'), y_embedded_noraml_and_adv_train.astype('float32'))
+    xgb_embedded.fit(X_embedded_normal_and_adv_train.astype('float32'),
+                     y_embedded_noraml_and_adv_train.astype('float32'))
 
     print('\n\n')
-    print(f"Embedded Train Predicted Adv: {np.count_nonzero(xgb_embedded.predict(X_embedded_normal_and_adv_train.astype('float32')))}")
+    print(
+        f"Embedded Train Predicted Adv: {np.count_nonzero(xgb_embedded.predict(X_embedded_normal_and_adv_train.astype('float32')))}")
     # print(
     #     f"Embedded Train ROC AUC: {roc_auc_score(y_embedded_noraml_and_adv_train, xgb_embedded.predict_proba(X_embedded_normal_and_adv_train.astype('float32'))[:, 1])}")
     print(
@@ -226,7 +227,8 @@ def check_simple_detector(dataset_name, directory, num_features):
     print(
         f"Embedded Train Precision: {precision_score(y_embedded_noraml_and_adv_train, xgb_embedded.predict(X_embedded_normal_and_adv_train.astype('float32')))}")
     print('\n\n')
-    print(f"Embedded Test Predicted Adv: {np.count_nonzero(xgb_embedded.predict(X_embedded_normal_and_adv_test.astype('float32')))}")
+    print(
+        f"Embedded Test Predicted Adv: {np.count_nonzero(xgb_embedded.predict(X_embedded_normal_and_adv_test.astype('float32')))}")
     # print(
     #     f"Embedded Test ROC AUC: {roc_auc_score(y_embedded_noraml_and_adv_test, xgb_embedded.predict_proba(X_embedded_normal_and_adv_test)[:, 1])}")
     print(

@@ -231,13 +231,22 @@ def load_prepare_mnist_dataset():
 
     return pd.DataFrame(X.reshape(-1, 784), columns=[str(i) for i in range(784)]), y
 
+
 def load_prepare_mnist_normalized_dataset():
     (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
 
     X = np.vstack([x_train, x_test]) / 255
     y = np.hstack([y_train, y_test])
+    X = pd.DataFrame(X.reshape(-1, 784), columns=[str(i) for i in range(784)])
 
-    return pd.DataFrame(X.reshape(-1, 784), columns=[str(i) for i in range(784)]), y
+    intersting_indexes = np.where((y == 0) | (y == 6))[0]
+    new_labels = np.copy(y)
+    new_labels[(y == 6)] = 1
+
+    X = X.iloc[intersting_indexes].values
+    y = new_labels[intersting_indexes]
+
+    return X, y
 
 
 # def load_prepare_cifar10_dataset():
@@ -254,5 +263,13 @@ def load_prepare_fashion_mnist_dataset():
 
     X = np.vstack([x_train, x_test])
     y = np.hstack([y_train, y_test])
+    X = pd.DataFrame(X.reshape(-1, 784), columns=[str(i) for i in range(784)])
 
-    return pd.DataFrame(X.reshape(-1, 784), columns=[str(i) for i in range(784)]), y
+    intersting_indexes = np.where((y == 0) | (y == 6))[0]
+    new_labels = np.copy(y)
+    new_labels[(y == 6)] = 1
+
+    X = X.iloc[intersting_indexes].values
+    y = new_labels[intersting_indexes]
+
+    return X, y
