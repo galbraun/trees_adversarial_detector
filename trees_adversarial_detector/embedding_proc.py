@@ -1,6 +1,7 @@
 # import keras
-import numpy as np
 import random
+
+import numpy as np
 from tqdm import tqdm
 
 from trees_adversarial_detector.tree_models import extract_nodes_samples, extract_nodes_splits, \
@@ -151,6 +152,7 @@ def extract_new_samples_embedding_dataset(X_train, X_new, model, embedding_datas
 
 import math
 from tensorflow import keras
+from sklearn.model_selection import train_test_split
 
 KL = keras.layers
 
@@ -192,11 +194,17 @@ def train_embedding(X_embedding, y_embedding, num_nodes, num_samples, num_featur
                     metrics=['accuracy'])
     print(f_model.summary())
 
-    train_indices = np.random.choice(X_embedding.shape[0], int((1 - val_size) * X_embedding.shape[0]), replace=False)
-    val_indices = np.arange(X_embedding.shape[0])[~np.isin(np.arange(X_embedding.shape[0]), train_indices)]
+    # train_indices = np.random.choice(X_embedding.shape[0], int((1 - val_size) * X_embedding.shape[0]), replace=False)
+    # val_indices = np.arange(X_embedding.shape[0])[~np.isin(np.arange(X_embedding.shape[0]), train_indices)]
 
-    training_generator = SamplesDataLoader(X_embedding[train_indices], y_embedding[train_indices])
-    validation_genearator = SamplesDataLoader(X_embedding[val_indices], y_embedding[val_indices])
+    X_embedding_train, X_embedding_val, y_embedding_train, y_embedding_test = train_test_split(X_embedding, y_embedding,
+                                                                                               shuffle=True,
+                                                                                               test_size=val_size)
+
+    # training_generator = SamplesDataLoader(X_embedding[train_indices], y_embedding[train_indices])
+    # validation_genearator = SamplesDataLoader(X_embedding[val_indices], y_embedding[val_indices])
+    training_generator = SamplesDataLoader(X_embedding_train, y_embedding_train)
+    validation_genearator = SamplesDataLoader(X_embedding_val, y_embedding_test)
 
     history = f_model.fit_generator(generator=training_generator, validation_data=validation_genearator,
                                     use_multiprocessing=False, verbose=1, epochs=epochs)

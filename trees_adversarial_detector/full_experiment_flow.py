@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tqdm import tqdm
 import pandas as pd
+import argparse
 
 from trees_adversarial_detector.attack import generate_adv_samples
 from trees_adversarial_detector.datasets import load_dataset
@@ -64,8 +65,8 @@ template_config = {
             "enable_early_return": True,
             "num_classes": 2,
             "feature_start": 0,
-            "num_point": 10,
-            "num_attack_per_point": 5,
+            "num_point": 50,
+            "num_attack_per_point": 10,
             "norm_type": 2,
             "search_mode": "signopt"
         },
@@ -75,8 +76,8 @@ template_config = {
             "enable_early_return": True,
             "num_classes": 2,
             "feature_start": 0,
-            "num_point": 300,
-            "num_attack_per_point": 5,
+            "num_point": 100,
+            "num_attack_per_point": 10,
             "norm_type": 2,
             "search_mode": "signopt"
         },
@@ -471,7 +472,10 @@ def _embedding_2d_represenetation(experiment_output, embedding_model, embedding_
 
 def full_experiment_cycle(config, load_from_disk=True):
     output_parent = pathlib.Path(config['output']['output_path_parent'])
-    experiment_output = output_parent / config['dataset']['dataset_name']
+    experiment_output = output_parent / f"{config['dataset']['dataset_name']}_{config['adv_samples']['search_mode']}_{config['adv_samples']['norm_type']}"
+
+    if not experiment_output.exists():
+        experiment_output.mkdir(exist_ok=True)
 
     # Load dataset
     print("Loading dataset")
@@ -600,6 +604,7 @@ def full_experiment_cycle(config, load_from_disk=True):
             1],
         load_from_disk, 'detector_normal_train')
 
+
     # Extract detector normal test embedding dataset
     embedding_X_detector_normal_test, embedding_y_detector_normal_test, num_nodes_detector_normal_test = \
         _extract_extra_embeddings_dataset(config, experiment_output, dataset_splitted['embedding_model'][0],
@@ -642,10 +647,7 @@ def full_experiment_cycle(config, load_from_disk=True):
                                                                                                             embedding_X_detector_adv_train,
                                                                                                             embedding_y_detector_adv_train,
                                                                                                             num_nodes_detector_adv_train,
-                                                                                                            dataset_splitted[
-                                                                                                                'detector_adv_train'][
-                                                                                                                0].shape[
-                                                                                                                0],
+                                                                                                            len(X_detector_adv_train),
                                                                                                             dataset_splitted[
                                                                                                                 'detector_adv_train'][
                                                                                                                 0].shape[
@@ -668,10 +670,7 @@ def full_experiment_cycle(config, load_from_disk=True):
                                                                                                           embedding_X_detector_adv_test,
                                                                                                           embedding_y_detector_adv_test,
                                                                                                           num_nodes_detector_adv_test,
-                                                                                                          dataset_splitted[
-                                                                                                              'detector_adv_test'][
-                                                                                                              0].shape[
-                                                                                                              0],
+                                                                                                          len(X_detector_adv_test),
                                                                                                           dataset_splitted[
                                                                                                               'detector_adv_test'][
                                                                                                               0].shape[
@@ -873,3 +872,26 @@ def dataset_spliter(X, y, need_test=True, X_test=None, y_test=None):
         'detector_adv_test': (X_detector_test_adv, y_detector_test_adv),
         'final_test': (X_final_test, y_final_test)
     }
+
+
+if __name__ == '__main__':
+    import numpy as np
+
+    parser = argparse.ArgumentParser(description='Adversarial Attack')
+    parser.add_argument('dataset', type=str, help='The dataset to load')
+    parser.add_argument('attack_type', type=str, help='Attack type')
+    parser.add_argument('norm', type=str, help='Attack norm')
+
+    args = parser.parse_args()
+
+    dataset = args.dataset
+    norm = np.inf if args.norm == 'inf' else int(args.norm)
+    attack_type = args.attack_type
+
+    config = template_config
+    config['dataset']['dataset_name'] = dataset
+    config['adv_samples']['norm_type'] = norm
+    config['adv_samples']['search_mode'] = attack_type
+    config['detector_adv_samples']['norm_type'] = norm
+    config['detector_adv_samples']['search_mode'] = attack_type
+    trees_model_v1 = full_experiment_cycle(config, load_from_disk=True)
