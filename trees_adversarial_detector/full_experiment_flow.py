@@ -241,7 +241,7 @@ def _train_xgboost_model(X_train, X_test, y_train, y_test, config, experiment_ou
                 fpr_train[i], tpr_train[i], _ = roc_curve(binarized_train_labels, y_train_score[:, i])
                 roc_auc_train[i] = auc(fpr_train[i], tpr_train[i])
 
-                        fpr_test[i], tpr_test[i], _ = roc_curve(binarized_test_labels, y_test_score[:, i])
+                fpr_test[i], tpr_test[i], _ = roc_curve(binarized_test_labels, y_test_score[:, i])
                 roc_auc_test[i] = auc(fpr_test[i], tpr_test[i])
 
             all_fpr_train = np.unique(np.concatenate([fpr_train[i] for i in range(n_classes)]))

@@ -9,6 +9,17 @@ In this research, we aim to develop an adversarial detector for attacks on an en
 
 ## Prerequisites & Setup
 
+Before running the project, ensure you have the following installed:
+
+- **Python 3.10 or higher**
+
+- **Required Python packages**:
+
+  You can install the necessary packages using `pip` and the provided requirements file.`requirements-cpu.txt` for cpu and `requirements-gpu.txt` for gpu.
+  ```bash
+  pip install -r requirements-cpu.txt
+  ```
+
 ## How To Run
 
 ## Experimental Results
@@ -28,3 +39,21 @@ PRC-AUC differences for XGBoost experiments between our method and OC-score for 
 <center><img src="imgs_with_background/xgboost_pr_diff_per_attack_2.png" alt="" width="700" height="400"></center>
 
 Full results represented <a href="https://galbraun.github.io/trees_adversarial_detector">here</a>.
+
+## Citation
+
+If you use this code or find our work helpful, please consider citing our paper:
+```
+@article{Braun2025,
+  title = {Adversarial evasion attacks detection for tree-based ensembles: A representation learning approach},
+  ISSN = {1566-2535},
+  url = {http://dx.doi.org/10.1016/j.inffus.2025.102964},
+  DOI = {10.1016/j.inffus.2025.102964},
+  journal = {Information Fusion},
+  publisher = {Elsevier BV},
+  author = {Braun,  Gal and Cohen,  Seffi and Rokach,  Lior},
+  year = {2025},
+  month = jan,
+  pages = {102964}
+}
+```
