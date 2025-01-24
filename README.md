@@ -5,7 +5,6 @@ This repository contains the experiment code from the paper.
 ## Abstract
 
 Research on adversarial evasion attacks primarily focuses on neural network models due to their popularity in fields such as computer vision and natural language processing, as well as their properties that facilitate the search for adversarial examples with minimal input changes. However, due to their high performance and explainability, decision trees and tree ensembles remain widely used, particularly in domains dominated by tabular data. In recent years, several studies have introduced novel adversarial attacks specifically targeting decision trees and tree ensembles, resulting in numerous papers addressing robust versions of these models.
-In this research, we aim to develop an adversarial detector for attacks on an ensemble of decision trees. While previous works have demonstrated the generation of more robust tree ensembles, considering evasion attacks during ensemble generation impacted the models' performance. Our approach introduces a method to detect adversarial samples without compromising the structure or original performance of the target model. Our analysis shows that leveraging representation learning based on the tree structure significantly improves detection rates compared to state-of-the-art techniques and training adversarial detectors using the original dataset representation.
 
 ## Prerequisites & Setup
 
@@ -15,10 +14,12 @@ Before running the project, ensure you have the following installed:
 
 - **Required Python packages**:
 
-  You can install the necessary packages using `pip` and the provided requirements file.`requirements-cpu.txt` for cpu and `requirements-gpu.txt` for gpu.
-  ```bash
-  pip install -r requirements-cpu.txt
-  ```
+    You can install the necessary packages using `pip` and the provided `pyproject.toml` file.
+    ```bash
+    pip install .[cpu] # for cpu 
+    pip install .[gpu] # for gpu 
+    ```
+
 
 ## How To Run
 
