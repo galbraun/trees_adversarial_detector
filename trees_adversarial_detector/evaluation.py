@@ -1,24 +1,21 @@
+import faiss
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from bokeh.io import save, output_file
-from bokeh.layouts import row, widgetbox, layout
-from bokeh.models import ColumnDataSource, HoverTool, CustomJS, TapTool, OpenURL
-from bokeh.models import HoverTool, LinearColorMapper, ColorBar
-from bokeh.models import HoverTool, LinearColorMapper, ColorBar
-from bokeh.models.widgets import Select, DataTable, TableColumn, Tabs, Panel
-from bokeh.palettes import Viridis11
-from bokeh.palettes import Viridis11
+from bokeh.layouts import layout
+from bokeh.models import (
+    ColumnDataSource,
+    HoverTool,
+)
 from bokeh.plotting import figure
-from bokeh.transform import transform
-from bokeh.transform import transform
 from sklearn.cluster import DBSCAN
 from sklearn.manifold import TSNE
-from sklearn.metrics import homogeneity_score, completeness_score
-from sklearn.metrics import roc_auc_score, accuracy_score
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    completeness_score,
+    homogeneity_score,
+)
 from tqdm import tqdm
-import faiss
 
 sns.set()
 
@@ -28,9 +25,8 @@ def evaluate_experiment():
 
 
 #https://towardsdatascience.com/make-knn-300-times-faster-than-scikit-learns-in-20-lines-5e29d74e76bb
-import numpy as np
 import faiss
-
+import numpy as np
 
 # class FaissKNeighbors:
 #     def __init__(self, k=5):
@@ -48,9 +44,9 @@ import faiss
 #         votes = self.y[indices]
 #         predictions = np.array([np.argmax(np.bincount(x)) for x in votes])
 #         return predictions
-
 #https://github.com/shankarpm/faiss_knn/blob/master/FAISS_KNN_Notebook.ipynb
 from scipy import stats
+
 
 class FaissKNeighbors:
 

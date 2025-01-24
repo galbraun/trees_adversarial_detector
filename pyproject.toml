@@ -5,7 +5,7 @@ description = "A project to detect adversarial attacks on tree-based models"
 authors = ["Gal Braun <galbraun@gmail.com>", "Seffi Cohen <seffi@post.bgu.ac.il>", "Lior Rokach <liorrk@post.bgu.ac.il>"]
 license = "MIT"
 packages = [
-    { include = "trees_adversarial_detector", from = "trees_adversarial_detector" },
+    { include = "trees_adversarial_detector", from = "." },
 ]
 
 [tool.poetry.dependencies]
