@@ -20,8 +20,20 @@ Before running the project, ensure you have the following installed:
     pip install .[gpu] # for gpu 
     ```
 
+## Datasets
+
+
 
 ## How To Run
+
+```bash
+python trees_adversarial_detector/full_experiment_flow.py <dataset> <attack_type> <norm> <detection_type> <sampled_embed_dim> <nodes_embed_dim> <modeltype>
+```
+
+Arguments:
+* `dataset` - The dataset to execute the experiment on. If it one of `['breast_cancer', 'codrna', 'diabetes', 'ijcnn1', 'webspam', 'mnist26', 'mnist', 'covtype', 'fashion', 'higgs', 'sensorless']`
+* 
+
 
 ## Experimental Results
 
